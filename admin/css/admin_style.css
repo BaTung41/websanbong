@@ -1,0 +1,101 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: Arial, sans-serif; 
+}
+.background {
+  background: rgb(50, 2, 2);
+  background: linear-gradient(
+    90deg,
+    rgba(2, 0, 36, 1) 0%,
+    rgba(162, 162, 244, 1) 0%,
+    rgba(113, 204, 222, 0.9921218487394958) 100%
+  );
+}
+.manage-container {
+    background: url('../../assets/bg-login.jpg') no-repeat center center fixed;
+    background-size: cover;
+    width: calc(100% - 250px);
+}
+.sidebar {
+  position: relative;
+  min-width: 250px;
+  min-height: 100vh;
+  background-color: #959595; /* Dark Bootstrap color */
+  color: white;
+  padding-top: 20px;
+  transition: all 0.3s;
+}
+
+.sidebar .logo img {
+  display: block;
+  margin: 0 auto 15px;
+}
+
+.sidebar a {
+  display: block;
+  color: #ffffff;
+  padding: 10px 15px;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+.logout-btn:hover {
+    opacity: 0.8 !important;
+    background-color: #dc3545 !important;
+}
+
+.sidebar a:hover {
+  background-color: #0f0c239c; /* Primary Bootstrap color */
+  color: white;
+}
+
+.sidebar a.active {
+  background-color: #0f0c239c; /* Primary Bootstrap color */
+  color: white;
+}
+
+.logout-btn {
+  position: absolute;
+  bottom: 20px;
+  width: 90%;
+  left: 5%;
+}
+
+.content {
+  margin-left: 250px;
+  padding: 20px;
+}
+.add-products {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+.menu-icon {
+    width: 21px;
+}
+.add-products form {
+  display: flex;
+  flex-direction: column;
+}
+
+.add-products .form-control {
+  margin-bottom: 10px;
+}
+
+.add-products .btn {
+  width: 100%;
+  padding: 12px;
+}
+.alert {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
