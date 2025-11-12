@@ -10,7 +10,7 @@
                         <i class="fas fa-map-marker-alt"></i>
                         <div class="info-content">
                             <h4>Địa Chỉ</h4>
-                            <p>Sân bóng Đầm Hồng, Đường Đầm Hồng, Phường Định Công, Hoàng Mai, Hà Nội</p>
+                            <p>Sân bóng Bá Tùng, Đào Tấn, Giảng Võ, Hà Nội</p>
                         </div>
                     </div>
                     <div class="info-item">
@@ -31,7 +31,7 @@
                         <i class="fas fa-envelope"></i>
                         <div class="info-content">
                             <h4>Email</h4>
-                            <p>mchienfootball@gmail.com</p>
+                            <p>tungfootball@gmail.com</p>
                         </div>
                     </div>
                 </div>

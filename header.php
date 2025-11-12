@@ -8,7 +8,7 @@ $user_id = @$_SESSION['user_id'] ?? 1;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vku Sport</title>
+    <title>Football Booking</title>
 
     <!-- Bootstrap CDN -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
@@ -159,7 +159,7 @@ $user_id = @$_SESSION['user_id'] ?? 1;
         }
         ?>
         <div class="strip d-flex justify-content-between px-4 py-1 bg-light">
-            <p class="font-rale font-size-12 text-black-50 m-0">Vku Sport - 0941201816 - Hoàng Mai - Hà Nội - Việt Nam</p>
+            <p class="font-rale font-size-12 text-black-50 m-0">Football Booking - Hà Nội - Việt Nam</p>
             <?php if ($user_id && $user_id != 1) { ?>
                 <div class="user-dropdown" style="position: relative; display: inline-block;">
                     <i class="fas fa-user-circle" style="font-size: 30px; cursor: pointer;" id="userIcon"></i>
@@ -182,7 +182,7 @@ $user_id = @$_SESSION['user_id'] ?? 1;
         <!-- Primary Navigation -->
         <nav style=" background: #28a745;" class="navbar navbar-expand-lg navbar-dark color-header-bg">
             <a class="navbar-brand" href="./index.php">
-                <img width="90" src="./assets/logo_fb.png" alt="logo" class="logo">
+                <img width="90" src="./assets/logo.png" alt="logo" class="logo">
             </a>
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
