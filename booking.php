@@ -21,36 +21,34 @@ $field = mysqli_fetch_assoc($field_query);
 
 // Xử lý đặt sân
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
-    // Kiểm tra file ảnh
-    if (!isset($_FILES['payment_image']) || $_FILES['payment_image']['error'] !== 0) {
-        echo "<script>
-            alert('Vui lòng upload ảnh bill thanh toán!');
-            history.back();
-        </script>";
-        exit();
+    // Xử lý đặt sân (Upload ảnh là tuỳ chọn — nếu có thì lưu, không có thì để trống)
+    $image_name = '';
+    if (isset($_FILES['payment_image']) && $_FILES['payment_image']['error'] === 0) {
+        $image = $_FILES['payment_image'];
+        $image_name = time() . '_' . $image['name'];
+        $target_path = 'assets/bill/' . $image_name;
+        if (!file_exists('assets/bill')) {
+            mkdir('assets/bill', 0777, true);
+        }
+        if (!move_uploaded_file($image['tmp_name'], $target_path)) {
+            echo "<script>
+                alert('Có lỗi khi upload ảnh. Vui lòng thử lại!');
+                history.back();
+            </script>";
+            exit();
+        }
     }
 
-    // Xử lý upload ảnh
-    $image = $_FILES['payment_image'];
-    $image_name = time() . '_' . $image['name'];
-    $target_path = 'assets/bill/' . $image_name;
-
-    // Kiểm tra và tạo thư mục nếu chưa tồn tại
-    if (!file_exists('assets/bill')) {
-        mkdir('assets/bill', 0777, true);
-    }
-
-    if (move_uploaded_file($image['tmp_name'], $target_path)) {
-        // Tiếp tục xử lý insert booking với ảnh
-        $user_id = $_SESSION['user_id'];
-        $field_id = $_POST['field_id'];
-        $booking_date = $_POST['booking_date'];
-        $start_time = $_POST['start_time'];
-        $duration = floatval($_POST['duration']);
-        $rent_ball = isset($_POST['rent_ball']) ? 1 : 0;
-        $rent_uniform = isset($_POST['rent_uniform']) ? 1 : 0;
-        $payment_method = $_POST['payment_method'];
-        $note = $_POST['note'] ?? '';
+    // Tiếp tục xử lý insert booking
+    $user_id = $_SESSION['user_id'];
+    $field_id = $_POST['field_id'];
+    $booking_date = $_POST['booking_date'];
+    $start_time = $_POST['start_time'];
+    $duration = floatval($_POST['duration']);
+    $rent_ball = isset($_POST['rent_ball']) ? 1 : 0;
+    $rent_uniform = isset($_POST['rent_uniform']) ? 1 : 0;
+    $payment_method = $_POST['payment_method'];
+    $note = $_POST['note'] ?? '';
 
         // Tính thời gian kết thúc
         $start_timestamp = strtotime("$booking_date $start_time");
@@ -58,70 +56,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
         $end_timestamp = $start_timestamp + $duration_seconds;
         $end_time = date('H:i', $end_timestamp);
 
-        // Kiểm tra trùng lịch
-        $check_query = "SELECT b.*, f.name as field_name 
-                       FROM bookings b
-                       JOIN football_fields f ON b.field_id = f.id
-                       WHERE b.field_id = '$field_id' 
-                       AND b.booking_date = '$booking_date'
-                       AND b.status IN ('Chờ xác nhận', 'Đã xác nhận')
-                       AND ((b.start_time <= '$start_time' AND b.end_time > '$start_time')
-                       OR (b.start_time < '$end_time' AND b.end_time >= '$end_time')
-                       OR (b.start_time >= '$start_time' AND b.end_time <= '$end_time'))";
-
-        $check_booking = mysqli_query($conn, $check_query);
-
-        if(mysqli_num_rows($check_booking) > 0) {
-            $existing_booking = mysqli_fetch_assoc($check_booking);
-            $error_message = "Sân " . $existing_booking['field_name'] . " đã được đặt trong khung giờ " . 
-                            $existing_booking['start_time'] . " - " . $existing_booking['end_time'] . 
-                            " ngày " . date('d/m/Y', strtotime($existing_booking['booking_date'])) . 
-                            ". Vui lòng chọn khung giờ khác!";
+        // Ngăn việc đặt nếu khung giờ đã trôi qua trong cùng ngày
+        date_default_timezone_set('Asia/Ho_Chi_Minh');
+        if ($booking_date == date('Y-m-d') && $start_timestamp <= time()) {
+            $error_message = 'Khung giờ đã trôi qua. Vui lòng chọn khung giờ khác!';
         } else {
-            // Nếu không trùng lịch thì tiếp tục xử lý và insert
-            $field_query = mysqli_query($conn, "SELECT * FROM football_fields WHERE id = '$field_id'");
-            $field = mysqli_fetch_assoc($field_query);
-            $field_price = $field['rental_price'] * $duration;
-            $total_price = $field_price;
-            if ($rent_ball) $total_price += 100000;
-            if ($rent_uniform) $total_price += 100000;
-            $deposit_amount = $total_price * 0.5;
+            // Kiểm tra trùng lịch
+            $check_query = "SELECT b.*, f.name as field_name 
+                           FROM bookings b
+                           JOIN football_fields f ON b.field_id = f.id
+                           WHERE b.field_id = '$field_id' 
+                           AND b.booking_date = '$booking_date'
+                           AND b.status IN ('Chờ xác nhận', 'Đã xác nhận')
+                           AND ((b.start_time <= '$start_time' AND b.end_time > '$start_time')
+                           OR (b.start_time < '$end_time' AND b.end_time >= '$end_time')
+                           OR (b.start_time >= '$start_time' AND b.end_time <= '$end_time'))";
 
-            // Thêm tên file ảnh vào câu query insert
-            $insert_query = "INSERT INTO bookings 
-                (user_id, field_id, booking_date, start_time, end_time, duration,
-                 field_price, rent_ball, rent_uniform, total_price, note, status,
-                 payment_method, deposit_amount, payment_status, payment_image) 
-                VALUES (
-                    '$user_id', '$field_id', '$booking_date', '$start_time', '$end_time',
-                    '$duration', '$field_price', '$rent_ball', '$rent_uniform', '$total_price',
-                    '$note', 'Chờ xác nhận', '$payment_method', '$deposit_amount', 'Đã đặt cọc',
-                    '$image_name'
-                )";
+            $check_booking = mysqli_query($conn, $check_query);
 
-            if (mysqli_query($conn, $insert_query)) {
-                echo "<script>
-                    alert('Đặt sân thành công!');
-                    window.location.href = 'my-bookings.php';
-                </script>";
-                exit();
+            if(mysqli_num_rows($check_booking) > 0) {
+                $existing_booking = mysqli_fetch_assoc($check_booking);
+                $error_message = "Sân " . $existing_booking['field_name'] . " đã được đặt trong khung giờ " . 
+                                $existing_booking['start_time'] . " - " . $existing_booking['end_time'] . 
+                                " ngày " . date('d/m/Y', strtotime($existing_booking['booking_date'])) . 
+                                ". Vui lòng chọn khung giờ khác!";
             } else {
-                $error_message = "Có lỗi xảy ra khi đặt sân. Vui lòng thử lại!";
-                // Xóa file ảnh nếu insert thất bại
-                unlink($target_path);
+                // Nếu không trùng lịch thì tiếp tục xử lý và insert
+                $field_query = mysqli_query($conn, "SELECT * FROM football_fields WHERE id = '$field_id'");
+                $field = mysqli_fetch_assoc($field_query);
+                $field_price = $field['rental_price'] * $duration;
+                $total_price = $field_price;
+                if ($rent_ball) $total_price += 100000;
+                if ($rent_uniform) $total_price += 100000;
+
+                // Tính phụ thu giờ cao điểm (16:00-18:00) 200.000 đ / giờ
+                $surcharge_per_hour = 200000;
+                $surcharge_hours = 0;
+                for ($i = 0; $i < $duration; $i++) {
+                    $hour = (int)date('H', $start_timestamp + $i * 3600);
+                    if ($hour >= 16 && $hour < 18) {
+                        $surcharge_hours++;
+                    }
+                }
+                $surcharge_amount = $surcharge_hours * $surcharge_per_hour;
+                $total_price += $surcharge_amount;
+
+                $deposit_amount = $total_price * 0.5;
+
+                // Thêm tên file ảnh vào câu query insert
+                $insert_query = "INSERT INTO bookings 
+                    (user_id, field_id, booking_date, start_time, end_time, duration,
+                     field_price, rent_ball, rent_uniform, total_price, note, status,
+                     payment_method, deposit_amount, payment_status, payment_image) 
+                    VALUES (
+                        '$user_id', '$field_id', '$booking_date', '$start_time', '$end_time',
+                        '$duration', '$field_price', '$rent_ball', '$rent_uniform', '$total_price',
+                        '$note', 'Chờ xác nhận', '$payment_method', '$deposit_amount', 'Đã đặt cọc',
+                        '$image_name'
+                    )";
+
+                if (mysqli_query($conn, $insert_query)) {
+                    echo "<script>
+                        alert('Đặt sân thành công!');
+                        window.location.href = 'my-bookings.php';
+                    </script>";
+                    exit();
+                } else {
+                    $error_message = "Có lỗi xảy ra khi đặt sân. Vui lòng thử lại!";
+                    // Xóa file ảnh nếu insert thất bại
+                    if (!empty($image_name) && file_exists($target_path)) {
+                        unlink($target_path);
+                    }
+                }
             }
         }
-    } else {
-        echo "<script>
-            alert('Có lỗi khi upload ảnh. Vui lòng thử lại!');
-            history.back();
-        </script>";
-        exit();
-    }
 }
+
 ?>
 
 <?php include 'header.php'; ?>
+<?php
+// Display messages coming from VNPay return
+if (!empty($_GET['success'])) {
+    echo '<div class="container mt-3"><div class="alert alert-success" role="alert">' . htmlspecialchars($_GET['success']) . '</div></div>';
+} elseif (!empty($_GET['error'])) {
+    echo '<div class="container mt-3"><div class="alert alert-danger" role="alert">' . htmlspecialchars($_GET['error']) . '</div></div>';
+}
+?>
 <!-- Trong phần head -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <!-- Thêm jQuery trước Bootstrap JS -->
@@ -172,22 +193,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
                                        min="<?php echo date('Y-m-d'); ?>" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label>Giờ bắt đầu</label>
-                                <input type="time" name="start_time" class="form-control" 
-                                       min="06:00" max="22:00" required>
+                                <label>Giờ bắt đầu & Khung giờ</label>
+                                <div class="custom-time-picker">
+                                    <button type="button" class="btn btn-outline-secondary w-100 text-start time-picker-btn" id="timePickerBtn">
+                                        <span class="time-picker-value">Chọn khung giờ</span>
+                                        <i class="fas fa-chevron-down float-end"></i>
+                                    </button>
+                                    <div class="time-picker-dropdown" id="timePickerDropdown">
+                                        <div class="time-picker-list">
+                                            <div class="time-option-checkbox" data-value="06:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="06:00">
+                                                <span>06:00 - 07:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="07:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="07:00">
+                                                <span>07:00 - 08:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="08:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="08:00">
+                                                <span>08:00 - 09:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="09:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="09:00">
+                                                <span>09:00 - 10:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="10:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="10:00">
+                                                <span>10:00 - 11:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="11:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="11:00">
+                                                <span>11:00 - 12:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="12:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="12:00">
+                                                <span>12:00 - 13:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="13:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="13:00">
+                                                <span>13:00 - 14:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="14:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="14:00">
+                                                <span>14:00 - 15:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="15:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="15:00">
+                                                <span>15:00 - 16:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="16:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="16:00">
+                                                <span>16:00 - 17:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="17:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="17:00">
+                                                <span>17:00 - 18:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="18:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="18:00">
+                                                <span>18:00 - 19:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="19:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="19:00">
+                                                <span>19:00 - 20:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="20:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="20:00">
+                                                <span>20:00 - 21:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="21:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="21:00">
+                                                <span>21:00 - 22:00</span>
+                                            </div>
+                                            <div class="time-option-checkbox" data-value="22:00">
+                                                <input type="checkbox" class="time-slot-checkbox" value="22:00">
+                                                <span>22:00 - 23:00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="start_time" id="start_time_hidden" required>
+                                <input type="hidden" name="duration" id="duration_hidden" value="1">
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label>Thời gian thuê (giờ)</label>
-                                <select style="padding: 6px 12px;" name="duration" class="form-control" required>
-                                    <option value="1">1 giờ</option>
-                                    <option value="1.5">1.5 giờ</option>
-                                    <option value="2">2 giờ</option>
-                                    <option value="2.5">2.5 giờ</option>
-                                    <option value="3">3 giờ</option>
-                                </select>
-                            </div>
                             <div class="col-md-6 mb-3">
                                 <label>Dịch vụ thêm</label>
                                 <div class="additional-services">
@@ -221,6 +310,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
                                         <span>Thuê áo pitch:</span>
                                         <span>100.000 đ</span>
                                     </div>
+                                    <div class="price-item" id="peakPriceRow" style="display: none;">
+                                        <span>Giờ cao điểm (16:00-18:00):</span>
+                                        <span class="peak-amount">0 đ</span>
+                                    </div>
                                     <div class="price-item total">
                                         <span>Tổng tiền:</span>
                                         <span id="totalPrice">0 đ</span>
@@ -252,13 +345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
                                         VNPay
                                     </label>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="payment_method" 
-                                           id="bank" value="bank" required>
-                                    <label class="form-check-label payment-label" for="bank">
-                                        Chuyển khoản ngân hàng
-                                    </label>
-                                </div>
+                                <!-- Bank transfer option removed -->
                             </div>
                         </div>
                         <button type="button" class="btn btn-booking mt-4" onclick="showPaymentModal()">
@@ -300,48 +387,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
 
                         <!-- Phần hiển thị phương thức thanh toán -->
                         <div id="momoPayment" style="display: none;">
-                            <h6>Quét mã QR để thanh toán MOMO</h6>
+                            <h6>Thanh toán QR MOMO</h6>
                             <div class="text-center">
-                                <img src=""assets/momo-qr.jpg"" alt="MOMO QR";">
+                                <button type="button" class="btn btn-danger thanhtoan" onclick="submitMomoPayment()">Thanh toán QR MOMO</button>
                             </div>
                         </div>
 
                         <div id="vnpayPayment" style="display: none;">
-                            <h6>Quét mã QR để thanh toán VNPay</h6>
+                            <h6>Thanh toán QR VNPay</h6>
                             <div class="text-center">
-                                <img src="assets/images/vnpay-qr.png" alt="VNPay QR" style="width: 200px;">
+                                <button type="button" class="btn btn-danger thanhtoan" onclick="submitVnpayPayment()">Thanh toán QR VNPay</button>
                             </div>
                         </div>
 
-                        <div id="bankPayment" style="display: none;">
-                            <h6>Thông tin chuyển khoản:</h6>
-                            <div class="bank-details">
-                                <p><strong>Ngân hàng:</strong> Vietcombank</p>
-                                <p><strong>Số tài khoản:</strong> 1234567890</p>
-                                <p><strong>Chủ tài khoản:</strong> NGUYEN VAN A</p>
-                                <p><strong>Nội dung CK:</strong> <span id="transferContent"></span></p>
-                            </div>
-                        </div>
+                        <!-- Bank transfer details removed -->
 
-                        <!-- Phần upload ảnh bill -->
-                        <div class="mt-4">
-                            <h6>Upload ảnh bill thanh toán:</h6>
-                            <div class="mb-3">
-                                <input style="padding: 6px;" type="file" class="form-control" id="paymentImage" name="payment_image" 
-                                       accept="image/*" required>
-                                <div class="form-text">Vui lòng upload ảnh chụp màn hình bill thanh toán</div>
-                            </div>
-                            <div id="imagePreview" class="mt-2 text-center" style="display: none;">
-                                <img src="" alt="Preview" style="max-width: 200px; max-height: 200px;">
-                            </div>
-                        </div>
+                        <!-- Phần thanh toán MOMO: nút gửi tới confirm_momo.php -->
+
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                    <button type="submit" name="submit_booking" class="btn btn-primary">
-                        Xác nhận thanh toán
-                    </button>
                 </div>
             </form>
         </div>
@@ -352,6 +418,127 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_booking'])) {
 .booking-container {
     background: #f8f9fa;
     min-height: 100vh;
+}
+
+/* Custom time picker styles */
+.custom-time-picker {
+    position: relative;
+}
+
+.time-picker-btn {
+    border: 1px solid #ddd;
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.time-picker-btn:hover {
+    border-color: #28a745;
+    background-color: #f8f9fa;
+}
+
+.time-picker-btn.active {
+    border-color: #28a745;
+    background-color: #fff;
+}
+
+.time-picker-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    z-index: 1000;
+    margin-top: -1px;
+}
+
+.time-picker-dropdown.show {
+    display: block;
+}
+
+.time-picker-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.time-option-checkbox {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.time-option-checkbox:hover {
+    background-color: #f8f9fa;
+}
+
+.time-option-checkbox input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0;
+}
+
+.time-option-checkbox.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    color: #999;
+    background-color: #f5f5f5;
+}
+
+.time-option-checkbox.disabled:hover {
+    background-color: #f5f5f5;
+}
+
+.time-option-checkbox.disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
+.time-option-checkbox:last-child {
+    border-bottom: none;
+}
+
+.time-option {
+    padding: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s;
+}
+
+.time-option:hover {
+    background-color: #f8f9fa;
+    color: #28a745;
+}
+
+.time-option.selected {
+    background-color: #e8f5e9;
+    color: #28a745;
+    font-weight: 500;
+}
+
+.time-option:last-child {
+    border-bottom: none;
+}
+
+.time-option.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    color: #999;
+    background-color: #f5f5f5;
+}
+
+.time-option.disabled:hover {
+    background-color: #f5f5f5;
+    color: #999;
 }
 
 .field-info-card {
@@ -513,16 +700,7 @@ label {
     width: auto;
 }
 
-.bank-details {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 10px;
-}
-
-.bank-details p {
-    margin-bottom: 8px;
-}
+    /* Bank transfer styles removed */
 
 .amount-info {
     background: #e9ecef;
@@ -564,8 +742,17 @@ label {
 
 <script>
 function validateBooking() {
-    const startTime = document.querySelector('input[name="start_time"]').value;
-    const duration = parseFloat(document.querySelector('select[name="duration"]').value);
+    const startTimeInput = document.querySelector('input[name="start_time"]');
+    const durationInput = document.getElementById('duration_hidden');
+    
+    const startTime = startTimeInput.value;
+    const duration = parseFloat(durationInput.value) || 1;
+    
+    // Kiểm tra có chọn giờ không
+    if (!startTime) {
+        alert('Vui lòng chọn khung giờ');
+        return false;
+    }
     
     // Chuyển start_time sang timestamp
     const [hours, minutes] = startTime.split(':');
@@ -578,6 +765,19 @@ function validateBooking() {
         alert('Thời gian đặt sân phải từ 6:00 đến 22:00');
         return false;
     }
+
+    // Nếu chọn cùng ngày, không cho chọn khung giờ đã trôi qua
+    const bookingDate = document.querySelector('input[name="booking_date"]').value;
+    if (bookingDate === new Date().toISOString().slice(0,10)) {
+        const [h, m] = startTime.split(':');
+        const slot = new Date();
+        slot.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+        const now = new Date();
+        if (slot <= now) {
+            alert('Khung giờ đã trôi qua. Vui lòng chọn khung giờ khác.');
+            return false;
+        }
+    }
     
     return true;
 }
@@ -585,16 +785,17 @@ function validateBooking() {
 document.addEventListener('DOMContentLoaded', function() {
     // Cập nhật giá khi thay đổi thời gian hoặc dịch vụ
     const form = document.getElementById('bookingForm');
-    const durationSelect = form.querySelector('[name="duration"]');
+    const durationHidden = document.getElementById('duration_hidden');
     const rentBallCheckbox = document.getElementById('rentBall');
     const rentUniformCheckbox = document.getElementById('rentUniform');
     const fieldPriceSpan = document.getElementById('fieldPrice');
     const totalPriceSpan = document.getElementById('totalPrice');
     const ballPriceRow = document.getElementById('ballPriceRow');
     const uniformPriceRow = document.getElementById('uniformPriceRow');
+    const peakPriceRow = document.getElementById('peakPriceRow');
     
     function updatePrice() {
-        const duration = parseFloat(durationSelect.value);
+        const duration = parseFloat(durationHidden.value) || 1;
         const rentalPrice = <?php echo $field['rental_price']; ?>;
         const rentBall = rentBallCheckbox.checked;
         const rentUniform = rentUniformCheckbox.checked;
@@ -607,10 +808,29 @@ document.addEventListener('DOMContentLoaded', function() {
         ballPriceRow.style.display = rentBall ? 'flex' : 'none';
         uniformPriceRow.style.display = rentUniform ? 'flex' : 'none';
         
+        // Tính phụ thu giờ cao điểm (200.000 đ / giờ cho 16:00-18:00)
+        const checkedSlots = Array.from(document.querySelectorAll('.time-slot-checkbox'))
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        const surchargePerHour = 200000;
+        let surchargeHours = 0;
+        checkedSlots.forEach(v => {
+            const h = parseInt(v.split(':')[0], 10);
+            if (h >= 16 && h < 18) surchargeHours++;
+        });
+        const peakSurcharge = surchargeHours * surchargePerHour;
+        if (peakSurcharge > 0) {
+            peakPriceRow.style.display = 'flex';
+            peakPriceRow.querySelector('.peak-amount').textContent = peakSurcharge.toLocaleString('vi-VN') + ' đ';
+        } else {
+            peakPriceRow.style.display = 'none';
+        }
+        
         // Tính tổng tiền
         let totalPrice = fieldPrice;
         if (rentBall) totalPrice += 100000;
         if (rentUniform) totalPrice += 100000;
+        totalPrice += peakSurcharge;
         
         totalPriceSpan.textContent = totalPrice.toLocaleString('vi-VN') + ' đ';
         
@@ -620,12 +840,178 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Gắn sự kiện cho các trường input
-    durationSelect.addEventListener('change', updatePrice);
     rentBallCheckbox.addEventListener('change', updatePrice);
     rentUniformCheckbox.addEventListener('change', updatePrice);
     
     // Khởi tạo giá ban đầu
     updatePrice();
+});
+
+// Custom time picker with multi-slot selection
+document.addEventListener('DOMContentLoaded', function() {
+    const timePickerBtn = document.getElementById('timePickerBtn');
+    const timePickerDropdown = document.getElementById('timePickerDropdown');
+    const timeSlotCheckboxes = document.querySelectorAll('.time-slot-checkbox');
+    const startTimeHidden = document.getElementById('start_time_hidden');
+    const durationHidden = document.getElementById('duration_hidden');
+    const timePickerValue = document.querySelector('.time-picker-value');
+    const bookingForm = document.getElementById('bookingForm');
+    const bookingDateInput = bookingForm.querySelector('[name="booking_date"]');
+    
+    // Hàm cập nhật display text và hidden fields
+    function updateTimeDisplay() {
+        const checkedSlots = Array.from(timeSlotCheckboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        
+        if (checkedSlots.length === 0) {
+            timePickerValue.textContent = 'Chọn khung giờ';
+            startTimeHidden.value = '';
+            durationHidden.value = '1';
+        } else {
+            // Sắp xếp giờ
+            checkedSlots.sort();
+            
+            // Giờ bắt đầu là giờ đầu tiên
+            const startTime = checkedSlots[0];
+            startTimeHidden.value = startTime;
+            
+            // Duration = số khung giờ được chọn
+            const duration = checkedSlots.length;
+            durationHidden.value = duration;
+            
+            // Nhóm các giờ liên tiếp
+            const timeRanges = [];
+            let rangeStart = checkedSlots[0];
+            let rangeLast = checkedSlots[0];
+            
+            for (let i = 1; i < checkedSlots.length; i++) {
+                const currentHour = parseInt(checkedSlots[i].split(':')[0]);
+                const lastHour = parseInt(rangeLast.split(':')[0]);
+                
+                // Nếu giờ hiện tại liên tiếp với giờ trước
+                if (currentHour === lastHour + 1) {
+                    rangeLast = checkedSlots[i];
+                } else {
+                    // Nếu không liên tiếp, thêm range vào mảng
+                    const nextHour = String(lastHour + 1).padStart(2, '0') + ':00';
+                    timeRanges.push(`${rangeStart} - ${nextHour}`);
+                    rangeStart = checkedSlots[i];
+                    rangeLast = checkedSlots[i];
+                }
+            }
+            
+            // Thêm range cuối cùng
+            const lastHour = parseInt(rangeLast.split(':')[0]);
+            const lastNextHour = String(lastHour + 1).padStart(2, '0') + ':00';
+            timeRanges.push(`${rangeStart} - ${lastNextHour}`);
+            
+            // Hiển thị tất cả ranges
+            const displayText = timeRanges.join(', ');
+            timePickerValue.textContent = `${displayText} (${duration} giờ)`;
+            
+            // Tự động đóng dropdown sau 200ms
+            setTimeout(() => {
+                timePickerDropdown.classList.remove('show');
+                timePickerBtn.classList.remove('active');
+            }, 200);
+        }
+        
+        // Update price
+        const priceEvent = new Event('change');
+        document.getElementById('duration_hidden').dispatchEvent(priceEvent);
+        updatePriceDisplay();
+    }
+    
+    function updatePriceDisplay() {
+        const event = new Event('change');
+        document.getElementById('rentBall').dispatchEvent(event);
+    }
+    
+    // Hàm load giờ đã đặt
+    function loadBookedTimes() {
+        const selectedDate = bookingDateInput.value;
+        
+        if (!selectedDate) {
+            return;
+        }
+        
+        // Get checked slots to calculate duration
+        const checkedSlots = Array.from(timeSlotCheckboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        const duration = checkedSlots.length || 1;
+        
+        fetch('get_booked_times.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'field_id=' + bookingForm.querySelector('[name="field_id"]').value + 
+                  '&booking_date=' + selectedDate +
+                  '&duration=' + duration
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Remove disabled class từ tất cả option
+            document.querySelectorAll('.time-option-checkbox').forEach(option => {
+                option.classList.remove('disabled');
+                option.style.pointerEvents = 'auto';
+                const checkbox = option.querySelector('.time-slot-checkbox');
+                if (checkbox) checkbox.disabled = false;
+            });
+            
+            // Thêm disabled class vào các giờ không available
+            if (data.unavailableTimes && data.unavailableTimes.length > 0) {
+                data.unavailableTimes.forEach(time => {
+                    const option = document.querySelector(`.time-option-checkbox[data-value="${time}"]`);
+                    if (option) {
+                        option.classList.add('disabled');
+                        option.style.pointerEvents = 'none';
+                        const checkbox = option.querySelector('.time-slot-checkbox');
+                        if (checkbox) {
+                            checkbox.disabled = true;
+                            checkbox.checked = false;
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Toggle dropdown
+    timePickerBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        timePickerDropdown.classList.toggle('show');
+        timePickerBtn.classList.toggle('active');
+    });
+    
+    // Handle checkbox changes
+    timeSlotCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function(e) {
+            // Nếu đã disabled thì không cho check
+            if (this.disabled) {
+                e.preventDefault();
+                this.checked = false;
+                return;
+            }
+            
+            updateTimeDisplay();
+            loadBookedTimes();
+        });
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.custom-time-picker')) {
+            timePickerDropdown.classList.remove('show');
+            timePickerBtn.classList.remove('active');
+        }
+    });
+    
+    // Load booked times khi ngày thay đổi
+    bookingDateInput.addEventListener('change', loadBookedTimes);
 });
 
 // Khởi tạo modal khi trang được load
@@ -669,8 +1055,8 @@ function showPaymentModal() {
     const mainForm = document.getElementById('bookingForm');
     document.getElementById('modal_field_id').value = mainForm.querySelector('[name="field_id"]').value;
     document.getElementById('modal_booking_date').value = mainForm.querySelector('[name="booking_date"]').value;
-    document.getElementById('modal_start_time').value = mainForm.querySelector('[name="start_time"]').value;
-    document.getElementById('modal_duration').value = mainForm.querySelector('[name="duration"]').value;
+    document.getElementById('modal_start_time').value = document.getElementById('start_time_hidden').value;
+    document.getElementById('modal_duration').value = document.getElementById('duration_hidden').value;
     document.getElementById('modal_rent_ball').value = mainForm.querySelector('[name="rent_ball"]').checked ? 1 : 0;
     document.getElementById('modal_rent_uniform').value = mainForm.querySelector('[name="rent_uniform"]').checked ? 1 : 0;
     document.getElementById('modal_note').value = mainForm.querySelector('[name="note"]').value;
@@ -687,30 +1073,92 @@ function showPaymentModal() {
     paymentModal.show();
 }
 
-// Preview ảnh khi chọn file
-document.getElementById('paymentImage').addEventListener('change', function(e) {
-    const preview = document.getElementById('imagePreview');
-    const file = e.target.files[0];
-    const reader = new FileReader();
 
-    reader.onload = function(e) {
-        preview.style.display = 'block';
-        preview.querySelector('img').src = e.target.result;
-    }
-
-    if (file) {
-        reader.readAsDataURL(file);
-    }
-});
 
 // Hiển thị phương thức thanh toán
 function showPaymentMethod(method) {
-    document.getElementById('momoPayment').style.display = 'none';
-    document.getElementById('vnpayPayment').style.display = 'none';
-    document.getElementById('bankPayment').style.display = 'none';
-    
-    document.getElementById(method + 'Payment').style.display = 'block';
+    ['momoPayment','vnpayPayment'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const sel = document.getElementById(method + 'Payment');
+    if (sel) sel.style.display = 'block';
 }
+
+// Function to submit MoMo payment
+function submitMomoPayment() {
+    const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+    const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+    
+    if (depositNum <= 0) {
+        alert('Vui lòng chọn khung giờ trước');
+        return;
+    }
+    
+    // Populate hidden MoMo form
+    document.getElementById('hiddenMomoAmount').value = depositNum;
+    document.getElementById('hiddenMomoFieldId').value = document.getElementById('modal_field_id').value;
+    document.getElementById('hiddenMomoBookingDate').value = document.getElementById('modal_booking_date').value;
+    document.getElementById('hiddenMomoStartTime').value = document.getElementById('modal_start_time').value;
+    document.getElementById('hiddenMomoDuration').value = document.getElementById('modal_duration').value;
+    document.getElementById('hiddenMomoRentBall').value = document.getElementById('modal_rent_ball').value;
+    document.getElementById('hiddenMomoRentUniform').value = document.getElementById('modal_rent_uniform').value;
+    document.getElementById('hiddenMomoNote').value = document.getElementById('modal_note').value;
+    
+    // Submit form
+    document.getElementById('hiddenMomoForm').submit();
+}
+
+// Function to submit VNPay payment
+function submitVnpayPayment() {
+    const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+    const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+    
+    if (depositNum <= 0) {
+        alert('Vui lòng chọn khung giờ trước');
+        return;
+    }
+    
+    // Populate hidden VNPay form
+    document.getElementById('hiddenVnpayAmount').value = depositNum;
+    document.getElementById('hiddenVnpayFieldId').value = document.getElementById('modal_field_id').value;
+    document.getElementById('hiddenVnpayBookingDate').value = document.getElementById('modal_booking_date').value;
+    document.getElementById('hiddenVnpayStartTime').value = document.getElementById('modal_start_time').value;
+    document.getElementById('hiddenVnpayDuration').value = document.getElementById('modal_duration').value;
+    document.getElementById('hiddenVnpayRentBall').value = document.getElementById('modal_rent_ball').value;
+    document.getElementById('hiddenVnpayRentUniform').value = document.getElementById('modal_rent_uniform').value;
+    document.getElementById('hiddenVnpayNote').value = document.getElementById('modal_note').value;
+    document.getElementById('hiddenVnpayTotalPrice').value = document.getElementById('modalTotalPrice').textContent.replace(/[^\d]/g, '');
+    
+    // Submit form
+    document.getElementById('hiddenVnpayForm').submit();
+}
+
 </script>
+
+<!-- Hidden MoMo Payment Form -->
+<form action="confirm_momo.php" method="post" id="hiddenMomoForm" style="display: none;">
+    <input type="hidden" name="sotien" id="hiddenMomoAmount" />
+    <input type="hidden" name="field_id" id="hiddenMomoFieldId" />
+    <input type="hidden" name="booking_date" id="hiddenMomoBookingDate" />
+    <input type="hidden" name="start_time" id="hiddenMomoStartTime" />
+    <input type="hidden" name="duration" id="hiddenMomoDuration" />
+    <input type="hidden" name="rent_ball" id="hiddenMomoRentBall" />
+    <input type="hidden" name="rent_uniform" id="hiddenMomoRentUniform" />
+    <input type="hidden" name="note" id="hiddenMomoNote" />
+</form>
+
+<!-- Hidden VNPay Payment Form -->
+<form action="confirm_vnpay.php" method="post" id="hiddenVnpayForm" style="display: none;">
+    <input type="hidden" name="sotien" id="hiddenVnpayAmount" />
+    <input type="hidden" name="field_id" id="hiddenVnpayFieldId" />
+    <input type="hidden" name="booking_date" id="hiddenVnpayBookingDate" />
+    <input type="hidden" name="start_time" id="hiddenVnpayStartTime" />
+    <input type="hidden" name="duration" id="hiddenVnpayDuration" />
+    <input type="hidden" name="rent_ball" id="hiddenVnpayRentBall" />
+    <input type="hidden" name="rent_uniform" id="hiddenVnpayRentUniform" />
+    <input type="hidden" name="note" id="hiddenVnpayNote" />
+    <input type="hidden" name="total_price" id="hiddenVnpayTotalPrice" />
+</form>
 
 <?php include 'footer.php'; ?>

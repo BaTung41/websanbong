@@ -28,7 +28,7 @@
                 <h4 class="font-rubik font-size-20">Contact</h4>
                 <div class="d-flex flex-column flex-wrap">
                     <p class="font-rale font-size-14 text-white-50 pb-1">Hotline: 0123456789</p>
-                    <p class="font-rale font-size-14 text-white-50 pb-1">Address: Việt Nam</p>
+                    <p class="font-rale font-size-14 text-white-50 pb-1">Address: Đào Tấn, Ba Đình, Hà Nội, Việt Nam</p>
                 </div>
             </div>
         </div>

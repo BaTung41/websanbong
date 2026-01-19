@@ -168,7 +168,7 @@ $total_pages = ceil($total_fields / $limit);
             }
             ?>
             <div style="background-color: #28a745" class="text-white text-center py-2 mb-4 shadow">
-                <h1 class="mb-0">Quản Lý Sân Bóng</h1>
+                <h1 class="mb-0">Quản lý Sân bóng</h1>
             </div>
             <section class="add-products mb-4">
                 <form action="" method="post" enctype="multipart/form-data">

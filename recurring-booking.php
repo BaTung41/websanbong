@@ -29,31 +29,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $note = mysqli_real_escape_string($conn, $_POST['note']);
     $payment_method = $_POST['payment_method'];
 
-    // Kiểm tra file ảnh
-    if (!isset($_FILES['payment_image']) || $_FILES['payment_image']['error'] !== 0) {
-        echo "<script>
-            alert('Vui lòng upload ảnh bill thanh toán!');
-            history.back();
-        </script>";
-        exit();
-    }
-
-    // Xử lý upload ảnh
-    $image = $_FILES['payment_image'];
-    $image_name = time() . '_' . $image['name'];
-    $target_path = 'assets/bill/' . $image_name;
-
-    // Kiểm tra và tạo thư mục nếu chưa tồn tại
-    if (!file_exists('assets/bill')) {
-        mkdir('assets/bill', 0777, true);
-    }
-
-    if (!move_uploaded_file($image['tmp_name'], $target_path)) {
-        echo "<script>
-            alert('Có lỗi khi upload ảnh. Vui lòng thử lại!');
-            history.back();
-        </script>";
-        exit();
+    // Upload ảnh là tuỳ chọn (không bắt buộc)
+    $image_name = '';
+    if (isset($_FILES['payment_image']) && $_FILES['payment_image']['error'] === 0) {
+        $image = $_FILES['payment_image'];
+        $image_name = time() . '_' . $image['name'];
+        $target_path = 'assets/bill/' . $image_name;
+        if (!file_exists('assets/bill')) {
+            mkdir('assets/bill', 0777, true);
+        }
+        if (!move_uploaded_file($image['tmp_name'], $target_path)) {
+            echo "<script>
+                alert('Có lỗi khi upload ảnh. Vui lòng thử lại!');
+                history.back();
+            </script>";
+            exit();
+        }
     }
 
     // Tính giờ kết thúc
@@ -153,6 +144,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 ?>
 
 <?php include 'header.php'; ?>
+<?php
+// Display messages coming from VNPay return
+if (!empty($_GET['success'])) {
+    echo '<div class="container mt-3"><div class="alert alert-success" role="alert">' . htmlspecialchars($_GET['success']) . '</div></div>';
+} elseif (!empty($_GET['error'])) {
+    echo '<div class="container mt-3"><div class="alert alert-danger" role="alert">' . htmlspecialchars($_GET['error']) . '</div></div>';
+}
+?>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -221,23 +220,89 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     </select>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-8">
                                 <div class="form-group">
-                                    <label>Giờ bắt đầu</label>
-                                    <input type="time" name="start_time" class="form-control" 
-                                           min="06:00" max="22:00" required>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>Thời lượng (giờ)</label>
-                                    <select name="duration" class="form-control" required>
-                                        <option value="1">1 giờ</option>
-                                        <option value="1.5">1.5 giờ</option>
-                                        <option value="2">2 giờ</option>
-                                        <option value="2.5">2.5 giờ</option>
-                                        <option value="3">3 giờ</option>
-                                    </select>
+                                    <label>Giờ bắt đầu & Khung giờ</label>
+                                    <div class="custom-time-picker">
+                                        <button type="button" class="btn btn-outline-secondary w-100 text-start time-picker-btn" id="timePickerBtn">
+                                            <span class="time-picker-value">Chọn khung giờ</span>
+                                            <i class="fas fa-chevron-down float-end"></i>
+                                        </button>
+                                        <div class="time-picker-dropdown" id="timePickerDropdown">
+                                            <div class="time-picker-list">
+                                                <div class="time-option-checkbox" data-value="06:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="06:00">
+                                                    <span>06:00 - 07:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="07:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="07:00">
+                                                    <span>07:00 - 08:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="08:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="08:00">
+                                                    <span>08:00 - 09:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="09:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="09:00">
+                                                    <span>09:00 - 10:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="10:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="10:00">
+                                                    <span>10:00 - 11:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="11:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="11:00">
+                                                    <span>11:00 - 12:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="12:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="12:00">
+                                                    <span>12:00 - 13:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="13:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="13:00">
+                                                    <span>13:00 - 14:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="14:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="14:00">
+                                                    <span>14:00 - 15:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="15:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="15:00">
+                                                    <span>15:00 - 16:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="16:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="16:00">
+                                                    <span>16:00 - 17:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="17:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="17:00">
+                                                    <span>17:00 - 18:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="18:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="18:00">
+                                                    <span>18:00 - 19:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="19:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="19:00">
+                                                    <span>19:00 - 20:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="20:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="20:00">
+                                                    <span>20:00 - 21:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="21:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="21:00">
+                                                    <span>21:00 - 22:00</span>
+                                                </div>
+                                                <div class="time-option-checkbox" data-value="22:00">
+                                                    <input type="checkbox" class="time-slot-checkbox" value="22:00">
+                                                    <span>22:00 - 23:00</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" name="start_time" id="start_time_hidden" required>
+                                    <input type="hidden" name="duration" id="duration_hidden" value="1">
                                 </div>
                             </div>
                         </div>
@@ -293,13 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         VNPay
                                     </label>
                                 </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="payment_method" 
-                                           id="bank" value="bank" required>
-                                    <label class="form-check-label payment-label" for="bank">
-                                        Chuyển khoản ngân hàng
-                                    </label>
-                                </div>
+                                <!-- Bank transfer option removed -->
                             </div>
                         </div>
 
@@ -381,46 +440,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <!-- Phần hiển thị phương thức thanh toán -->
                         <div id="momoPayment" style="display: none;">
-                            <h6>Quét mã QR để thanh toán MOMO</h6>
+                            <h6>Thanh toán QR MOMO</h6>
                             <div class="text-center">
-                                <img src="assets/images/momo-qr.png" alt="MOMO QR" style="width: 200px;">
+                                <button type="button" class="btn btn-danger thanhtoan" onclick="submitMomoPaymentRecurring()">Thanh toán QR MOMO</button>
                             </div>
                         </div>
 
                         <div id="vnpayPayment" style="display: none;">
-                            <h6>Quét mã QR để thanh toán VNPay</h6>
+                            <h6>Thanh toán QR VNPay</h6>
                             <div class="text-center">
-                                <img src="assets/images/vnpay-qr.png" alt="VNPay QR" style="width: 200px;">
+                                <button type="button" class="btn btn-danger thanhtoan" onclick="submitVnpayPaymentRecurring()">Thanh toán QR VNPay</button>
                             </div>
                         </div>
 
-                        <div id="bankPayment" style="display: none;">
-                            <h6>Thông tin chuyển khoản:</h6>
-                            <div class="bank-details">
-                                <p><strong>Ngân hàng:</strong> Vietcombank</p>
-                                <p><strong>Số tài khoản:</strong> 1234567890</p>
-                                <p><strong>Chủ tài khoản:</strong> NGUYEN VAN A</p>
-                                <p><strong>Nội dung CK:</strong> <span id="transferContent"></span></p>
-                            </div>
-                        </div>
+                        <!-- Bank transfer details removed -->
 
-                        <!-- Phần upload ảnh bill -->
-                        <div class="mt-4">
-                            <h6>Upload ảnh bill thanh toán:</h6>
-                            <div class="mb-3">
-                                <input type="file" class="form-control" name="payment_image" 
-                                       accept="image/*" required>
-                                <div class="form-text">Vui lòng upload ảnh chụp màn hình bill thanh toán</div>
-                            </div>
-                            <div id="imagePreview" class="mt-2 text-center" style="display: none;">
-                                <img src="" alt="Preview" style="max-width: 200px; max-height: 200px;">
-                            </div>
-                        </div>
+                        <!-- Phần thanh toán MOMO: nút gửi tới confirm_momo.php -->
+
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                    <button type="submit" class="btn btn-primary">Xác nhận thanh toán</button>
                 </div>
             </form>
         </div>
@@ -646,13 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     margin-top: 10px;
 }
 
-.bank-details p {
-    margin-bottom: 8px;
-}
-
-.amount-info {
-    background: #e9ecef;
-    padding: 15px;
+/* Bank transfer styles removed */
     border-radius: 8px;
 }
 
@@ -686,16 +720,230 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     background-color: #5a6268;
     border-color: #545b62;
 }
+
+/* Custom time picker styles */
+.custom-time-picker {
+    position: relative;
+}
+
+.time-picker-btn {
+    border: 1px solid #ddd;
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background-color: #fff;
+}
+
+.time-picker-btn:hover {
+    border-color: #28a745;
+    background-color: #f8f9fa;
+}
+
+.time-picker-btn.active {
+    border-color: #28a745;
+    background-color: #fff;
+}
+
+.time-picker-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    z-index: 1000;
+    margin-top: -1px;
+}
+
+.time-picker-dropdown.show {
+    display: block;
+}
+
+.time-picker-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.time-option-checkbox {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.time-option-checkbox:hover {
+    background-color: #f8f9fa;
+}
+
+.time-option-checkbox input[type="checkbox"] {
+    cursor: pointer;
+    margin: 0;
+}
+
+.time-option-checkbox.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    color: #999;
+    background-color: #f5f5f5;
+}
+
+.time-option-checkbox.disabled:hover {
+    background-color: #f5f5f5;
+}
+
+.time-option-checkbox.disabled input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
+.time-option-checkbox:last-child {
+    border-bottom: none;
+}
 </style>
 
 <script>
+// Custom time picker with multi-slot selection
+document.addEventListener('DOMContentLoaded', function() {
+    const timePickerBtn = document.getElementById('timePickerBtn');
+    const timePickerDropdown = document.getElementById('timePickerDropdown');
+    const timeSlotCheckboxes = document.querySelectorAll('.time-slot-checkbox');
+    const startTimeHidden = document.getElementById('start_time_hidden');
+    const durationHidden = document.getElementById('duration_hidden');
+    const timePickerValue = document.querySelector('.time-picker-value');
+    
+    console.log('Time picker initialized:', {
+        timePickerBtn,
+        timePickerDropdown,
+        checkboxCount: timeSlotCheckboxes.length,
+        startTimeHidden,
+        durationHidden
+    });
+    
+    // Hàm cập nhật display text và hidden fields
+    function updateTimeDisplay() {
+        const checkedSlots = Array.from(timeSlotCheckboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        
+        console.log('updateTimeDisplay called, checked slots:', checkedSlots);
+        
+        if (checkedSlots.length === 0) {
+            timePickerValue.textContent = 'Chọn khung giờ';
+            startTimeHidden.value = '';
+            durationHidden.value = '1';
+        } else {
+            // Sắp xếp giờ
+            checkedSlots.sort();
+            
+            // Giờ bắt đầu là giờ đầu tiên
+            const startTime = checkedSlots[0];
+            startTimeHidden.value = startTime;
+            
+            // Duration = số khung giờ được chọn
+            const duration = checkedSlots.length;
+            durationHidden.value = duration;
+            
+            // Nhóm các giờ liên tiếp
+            const timeRanges = [];
+            let rangeStart = checkedSlots[0];
+            let rangeLast = checkedSlots[0];
+            
+            for (let i = 1; i < checkedSlots.length; i++) {
+                const currentHour = parseInt(checkedSlots[i].split(':')[0]);
+                const lastHour = parseInt(rangeLast.split(':')[0]);
+                
+                // Nếu giờ hiện tại liên tiếp với giờ trước
+                if (currentHour === lastHour + 1) {
+                    rangeLast = checkedSlots[i];
+                } else {
+                    // Nếu không liên tiếp, thêm range vào mảng
+                    const nextHour = String(lastHour + 1).padStart(2, '0') + ':00';
+                    timeRanges.push(`${rangeStart} - ${nextHour}`);
+                    rangeStart = checkedSlots[i];
+                    rangeLast = checkedSlots[i];
+                }
+            }
+            
+            // Thêm range cuối cùng
+            const lastHour = parseInt(rangeLast.split(':')[0]);
+            const lastNextHour = String(lastHour + 1).padStart(2, '0') + ':00';
+            timeRanges.push(`${rangeStart} - ${lastNextHour}`);
+            
+            // Hiển thị tất cả ranges
+            const displayText = timeRanges.join(', ');
+            timePickerValue.textContent = `${displayText} (${duration} giờ)`;
+            
+            console.log('Display updated:', {
+                startTime,
+                duration,
+                displayText
+            });
+            
+            // Tự động đóng dropdown sau 200ms
+            setTimeout(() => {
+                timePickerDropdown.classList.remove('show');
+                timePickerBtn.classList.remove('active');
+            }, 200);
+        }
+        
+        // Update price
+        const priceUpdateEvent = new Event('change', { bubbles: true });
+        durationHidden.dispatchEvent(priceUpdateEvent);
+    }
+    
+    if (!timePickerBtn) {
+        console.error('timePickerBtn not found!');
+        return;
+    }
+    
+    // Toggle dropdown
+    timePickerBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('Button clicked, dropdown show state:', !timePickerDropdown.classList.contains('show'));
+        timePickerDropdown.classList.toggle('show');
+        timePickerBtn.classList.toggle('active');
+    });
+    
+    // Handle checkbox changes
+    timeSlotCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function(e) {
+            console.log('Checkbox changed:', this.value);
+            // Nếu đã disabled thì không cho check
+            if (this.disabled) {
+                e.preventDefault();
+                this.checked = false;
+                return;
+            }
+            
+            updateTimeDisplay();
+        });
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.custom-time-picker')) {
+            timePickerDropdown.classList.remove('show');
+            timePickerBtn.classList.remove('active');
+        }
+    });
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // Các elements
     const form = document.querySelector('.booking-form');
     const startDateInput = form.querySelector('[name="start_date"]');
     const endDateInput = form.querySelector('[name="end_date"]');
     const dayOfWeekSelect = form.querySelector('[name="day_of_week"]');
-    const durationSelect = form.querySelector('[name="duration"]');
+    const durationHidden = document.getElementById('duration_hidden');
     const rentBallCheckbox = document.getElementById('rent_ball');
     const rentUniformCheckbox = document.getElementById('rent_uniform');
     const fieldPriceSpan = document.getElementById('fieldPrice');
@@ -729,21 +977,13 @@ document.addEventListener('DOMContentLoaded', function() {
         let count = 0;
         let current = new Date(start);
         
-        // Debug log
-        console.log('Start Date:', start);
-        console.log('End Date:', end);
-        console.log('Day of Week:', dayOfWeek);
-        console.log('Target Day Number:', dayMapping[dayOfWeek]);
-        
         while (current <= end) {
             if (current.getDay() === dayMapping[dayOfWeek]) {
                 count++;
-                console.log('Found matching day:', current.toDateString());
             }
             current.setDate(current.getDate() + 1);
         }
         
-        console.log('Total count:', count);
         return count;
     }
 
@@ -752,41 +992,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const startDate = startDateInput.value;
         const endDate = endDateInput.value;
         const dayOfWeek = dayOfWeekSelect.value;
-        const duration = parseFloat(durationSelect.value);
+        const duration = parseFloat(durationHidden.value) || 1;
         const rentalPrice = <?php echo $field['rental_price']; ?>;
         const rentBall = rentBallCheckbox.checked;
         const rentUniform = rentUniformCheckbox.checked;
 
         if (startDate && endDate && dayOfWeek) {
-            // Debug log
-            console.log('Calculating for:');
-            console.log('Start Date:', startDate);
-            console.log('End Date:', endDate);
-            console.log('Day of Week:', dayOfWeek);
-            
             // Đếm số ngày đặt sân
             const numberOfDays = countDaysInRange(startDate, endDate, dayOfWeek);
-            
-            // Debug log
-            console.log('Number of days:', numberOfDays);
             
             // Tổng số giờ và tính tiền
             const totalHours = numberOfDays * duration;
             const fieldPrice = totalHours * rentalPrice;
             const ballPrice = rentBall ? (100000 * numberOfDays) : 0;
             const uniformPrice = rentUniform ? (100000 * numberOfDays) : 0;
-
-            // Hiển thị thông tin chi tiết
-            // document.getElementById('bookingDetails').innerHTML = `
-            //     <div class="alert alert-info">
-            //         <p><strong>Chi tiết đặt sân:</strong></p>
-            //         <p>- Thứ: ${convertDayToVietnamese(dayOfWeek)}</p>
-            //         <p>- Từ ngày: ${formatDate(startDate)} đến ngày: ${formatDate(endDate)}</p>
-            //         <p>- Số buổi: ${numberOfDays} buổi</p>
-            //         <p>- Thời gian mỗi buổi: ${duration} giờ</p>
-            //         <p>- Tổng số giờ: ${totalHours} giờ</p>
-            //     </div>
-            // `;
 
             // Hiển thị giá
             fieldPriceSpan.textContent = fieldPrice.toLocaleString('vi-VN') + ' đ';
@@ -820,55 +1039,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Hàm chuyển đổi thứ sang tiếng Việt
-    function convertDayToVietnamese(day) {
-        const dayMap = {
-            'Monday': 'Thứ 2',
-            'Tuesday': 'Thứ 3',
-            'Wednesday': 'Thứ 4',
-            'Thursday': 'Thứ 5',
-            'Friday': 'Thứ 6',
-            'Saturday': 'Thứ 7',
-            'Sunday': 'Chủ nhật'
-        };
-        return dayMap[day];
-    }
-
-    // Hàm format ngày sang dd/mm/yyyy
-    function formatDate(dateString) {
-        const date = new Date(dateString);
-        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-    }
-
     // Thêm div để hiển thị chi tiết đặt sân
     const priceDetails = document.querySelector('.price-details');
-    const bookingDetailsDiv = document.createElement('div');
-    bookingDetailsDiv.id = 'bookingDetails';
-    priceDetails.insertBefore(bookingDetailsDiv, priceDetails.firstChild);
+    if (priceDetails) {
+        const bookingDetailsDiv = document.createElement('div');
+        bookingDetailsDiv.id = 'bookingDetails';
+        priceDetails.insertBefore(bookingDetailsDiv, priceDetails.firstChild);
+    }
 
     // Gắn sự kiện cho các trường input
     startDateInput.addEventListener('change', updatePrice);
     endDateInput.addEventListener('change', updatePrice);
     dayOfWeekSelect.addEventListener('change', updatePrice);
-    durationSelect.addEventListener('change', updatePrice);
+    durationHidden.addEventListener('change', updatePrice);
     rentBallCheckbox.addEventListener('change', updatePrice);
     rentUniformCheckbox.addEventListener('change', updatePrice);
 
-    // Preview ảnh khi chọn file
-    const imageInput = document.querySelector('input[name="payment_image"]');
-    const imagePreview = document.getElementById('imagePreview');
 
-    imageInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.style.display = 'block';
-                imagePreview.querySelector('img').src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-        }
-    });
 
     // Khởi tạo giá ban đầu
     updatePrice();
@@ -902,21 +1089,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Preview ảnh trong modal
-    const modalImageInput = modalElement.querySelector('input[name="payment_image"]');
-    const modalImagePreview = modalElement.querySelector('#imagePreview');
 
-    modalImageInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                modalImagePreview.style.display = 'block';
-                modalImagePreview.querySelector('img').src = e.target.result;
-            }
-            reader.readAsDataURL(file);
-        }
-    });
 });
 
 function showPaymentModal() {
@@ -947,12 +1120,143 @@ function showPaymentModal() {
 }
 
 function showPaymentMethod(method) {
-    document.getElementById('momoPayment').style.display = 'none';
-    document.getElementById('vnpayPayment').style.display = 'none';
-    document.getElementById('bankPayment').style.display = 'none';
-    
-    document.getElementById(method + 'Payment').style.display = 'block';
+    ['momoPayment','vnpayPayment'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const sel = document.getElementById(method + 'Payment');
+    if (sel) sel.style.display = 'block';
 }
+
+// Ensure MOMO form includes the deposit amount before submit
+const momoFormRecurring = document.getElementById('momoFormRecurring');
+if (momoFormRecurring) {
+    momoFormRecurring.addEventListener('submit', function (e) {
+        const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+        const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+        
+        // Populate all MoMo recurring form fields from main form
+        document.getElementById('selectedAmountInputRecurring').value = depositNum;
+        document.getElementById('momo_recurring_field_id').value = document.querySelector('input[name="field_id"]').value;
+        document.getElementById('momo_recurring_start_date').value = document.getElementById('startDate').value;
+        document.getElementById('momo_recurring_end_date').value = document.getElementById('endDate').value;
+        document.getElementById('momo_recurring_day_of_week').value = Array.from(document.querySelectorAll('input[name="dayOfWeek"]:checked')).map(cb => cb.value).join(',');
+        document.getElementById('momo_recurring_start_time').value = document.getElementById('startTime').value;
+        document.getElementById('momo_recurring_duration').value = document.getElementById('duration').value;
+        document.getElementById('momo_recurring_rent_ball').value = document.getElementById('rentBall')?.checked ? 1 : 0;
+        document.getElementById('momo_recurring_rent_uniform').value = document.getElementById('rentUniform')?.checked ? 1 : 0;
+        document.getElementById('momo_recurring_note').value = document.getElementById('note').value;
+        document.getElementById('momo_recurring_total_price').value = document.getElementById('totalPrice').textContent.replace(/[^\d]/g, '');
+    });
+}
+
+// Ensure VNPay form includes the deposit amount before submit
+const vnpayFormRecurring = document.getElementById('vnpayFormRecurring');
+if (vnpayFormRecurring) {
+    vnpayFormRecurring.addEventListener('submit', function (e) {
+        const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+        const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+        
+        // Populate all VNPay recurring form fields from main form
+        document.getElementById('selectedAmountInputRecurringVnpay').value = depositNum;
+        document.getElementById('vnpay_recurring_field_id').value = document.querySelector('input[name="field_id"]').value;
+        document.getElementById('vnpay_recurring_start_date').value = document.getElementById('startDate').value;
+        document.getElementById('vnpay_recurring_end_date').value = document.getElementById('endDate').value;
+        document.getElementById('vnpay_recurring_day_of_week').value = Array.from(document.querySelectorAll('input[name="dayOfWeek"]:checked')).map(cb => cb.value).join(',');
+        document.getElementById('vnpay_recurring_start_time').value = document.getElementById('startTime').value;
+        document.getElementById('vnpay_recurring_duration').value = document.getElementById('duration').value;
+        document.getElementById('vnpay_recurring_rent_ball').value = document.getElementById('rentBall')?.checked ? 1 : 0;
+        document.getElementById('vnpay_recurring_rent_uniform').value = document.getElementById('rentUniform')?.checked ? 1 : 0;
+        document.getElementById('vnpay_recurring_note').value = document.getElementById('note').value;
+        document.getElementById('vnpay_recurring_total_price').value = document.getElementById('totalPrice').textContent.replace(/[^\d]/g, '');
+    });
+}
+
+// Function to submit MoMo payment (Recurring)
+function submitMomoPaymentRecurring() {
+    const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+    const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+    
+    if (depositNum <= 0) {
+        alert('Vui lòng chọn ngày và giờ trước');
+        return;
+    }
+    
+    // Populate hidden MoMo form
+    document.getElementById('hiddenMomoAmountRecurring').value = depositNum;
+    document.getElementById('hiddenMomoFieldIdRecurring').value = document.querySelector('input[name="field_id"]').value;
+    document.getElementById('hiddenMomoStartDateRecurring').value = document.getElementById('startDate').value;
+    document.getElementById('hiddenMomoEndDateRecurring').value = document.getElementById('endDate').value;
+    document.getElementById('hiddenMomoDayOfWeekRecurring').value = Array.from(document.querySelectorAll('input[name="dayOfWeek"]:checked')).map(cb => cb.value).join(',');
+    document.getElementById('hiddenMomoStartTimeRecurring').value = document.getElementById('startTime').value;
+    document.getElementById('hiddenMomoDurationRecurring').value = document.getElementById('duration').value;
+    document.getElementById('hiddenMomoRentBallRecurring').value = document.getElementById('rentBall')?.checked ? 1 : 0;
+    document.getElementById('hiddenMomoRentUniformRecurring').value = document.getElementById('rentUniform')?.checked ? 1 : 0;
+    document.getElementById('hiddenMomoNoteRecurring').value = document.getElementById('note').value;
+    document.getElementById('hiddenMomoTotalPriceRecurring').value = document.getElementById('totalPrice').textContent.replace(/[^\d]/g, '');
+    
+    // Submit form
+    document.getElementById('hiddenMomoFormRecurring').submit();
+}
+
+// Function to submit VNPay payment (Recurring)
+function submitVnpayPaymentRecurring() {
+    const depositText = document.getElementById('modalDepositAmount').textContent || '0';
+    const depositNum = parseInt(depositText.replace(/[^0-9]/g, '')) || 0;
+    
+    if (depositNum <= 0) {
+        alert('Vui lòng chọn ngày và giờ trước');
+        return;
+    }
+    
+    // Populate hidden VNPay form
+    document.getElementById('hiddenVnpayAmountRecurring').value = depositNum;
+    document.getElementById('hiddenVnpayFieldIdRecurring').value = document.querySelector('input[name="field_id"]').value;
+    document.getElementById('hiddenVnpayStartDateRecurring').value = document.getElementById('startDate').value;
+    document.getElementById('hiddenVnpayEndDateRecurring').value = document.getElementById('endDate').value;
+    document.getElementById('hiddenVnpayDayOfWeekRecurring').value = Array.from(document.querySelectorAll('input[name="dayOfWeek"]:checked')).map(cb => cb.value).join(',');
+    document.getElementById('hiddenVnpayStartTimeRecurring').value = document.getElementById('startTime').value;
+    document.getElementById('hiddenVnpayDurationRecurring').value = document.getElementById('duration').value;
+    document.getElementById('hiddenVnpayRentBallRecurring').value = document.getElementById('rentBall')?.checked ? 1 : 0;
+    document.getElementById('hiddenVnpayRentUniformRecurring').value = document.getElementById('rentUniform')?.checked ? 1 : 0;
+    document.getElementById('hiddenVnpayNoteRecurring').value = document.getElementById('note').value;
+    document.getElementById('hiddenVnpayTotalPriceRecurring').value = document.getElementById('totalPrice').textContent.replace(/[^\d]/g, '');
+    
+    // Submit form
+    document.getElementById('hiddenVnpayFormRecurring').submit();
+}
+
 </script>
+
+<!-- Hidden MoMo Payment Form (Recurring) -->
+<form action="confirm_momo.php" method="post" id="hiddenMomoFormRecurring" style="display: none;">
+    <input type="hidden" name="sotien" id="hiddenMomoAmountRecurring" />
+    <input type="hidden" name="field_id" id="hiddenMomoFieldIdRecurring" />
+    <input type="hidden" name="start_date" id="hiddenMomoStartDateRecurring" />
+    <input type="hidden" name="end_date" id="hiddenMomoEndDateRecurring" />
+    <input type="hidden" name="day_of_week" id="hiddenMomoDayOfWeekRecurring" />
+    <input type="hidden" name="start_time" id="hiddenMomoStartTimeRecurring" />
+    <input type="hidden" name="duration" id="hiddenMomoDurationRecurring" />
+    <input type="hidden" name="rent_ball" id="hiddenMomoRentBallRecurring" />
+    <input type="hidden" name="rent_uniform" id="hiddenMomoRentUniformRecurring" />
+    <input type="hidden" name="note" id="hiddenMomoNoteRecurring" />
+    <input type="hidden" name="total_price" id="hiddenMomoTotalPriceRecurring" />
+</form>
+
+<!-- Hidden VNPay Payment Form (Recurring) -->
+<form action="confirm_vnpay.php" method="post" id="hiddenVnpayFormRecurring" style="display: none;">
+    <input type="hidden" name="sotien" id="hiddenVnpayAmountRecurring" />
+    <input type="hidden" name="field_id" id="hiddenVnpayFieldIdRecurring" />
+    <input type="hidden" name="start_date" id="hiddenVnpayStartDateRecurring" />
+    <input type="hidden" name="end_date" id="hiddenVnpayEndDateRecurring" />
+    <input type="hidden" name="day_of_week" id="hiddenVnpayDayOfWeekRecurring" />
+    <input type="hidden" name="start_time" id="hiddenVnpayStartTimeRecurring" />
+    <input type="hidden" name="duration" id="hiddenVnpayDurationRecurring" />
+    <input type="hidden" name="rent_ball" id="hiddenVnpayRentBallRecurring" />
+    <input type="hidden" name="rent_uniform" id="hiddenVnpayRentUniformRecurring" />
+    <input type="hidden" name="total_price" id="hiddenVnpayTotalPriceRecurring" />
+    <input type="hidden" name="note" id="hiddenVnpayNoteRecurring" />
+    <input type="hidden" name="total_price" id="hiddenVnpayTotalPriceRecurring" />
+</form>
 
 <?php include 'footer.php'; ?> 

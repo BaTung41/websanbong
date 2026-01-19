@@ -82,7 +82,7 @@ $users_query = mysqli_query($conn, "
         <?php include 'admin_navbar.php'; ?>
         <div class="container">
             <div style="background-color: #28a745" class="text-white text-center py-2 mb-4 shadow">
-                <h1 class="text-center mb-4">Quản Lý Tin Nhắn</h1>
+                <h1 class="text-center mb-4">Quản lý Tin nhắn</h1>
             </div>
 
             <!-- Danh sách người gửi -->
@@ -120,14 +120,15 @@ $users_query = mysqli_query($conn, "
                             ORDER BY created_at ASC
                         ") or die('Query failed');
                     ?>
-                        <div class="card">
-                            <div class="card-header bg-primary text-white">
-                                <h5>Hội thoại với 
+                        <div class="card" id="chatCard">
+                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Hội thoại với 
                                     <?php 
                                     $user_info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT username FROM users WHERE user_id = '$selected_user'"));
                                     echo $user_info['username']; 
                                     ?>
                                 </h5>
+                                <button type="button" class="btn-close btn-close-white ms-2" aria-label="Đóng" onclick="document.getElementById('chatCard').style.display='none';"></button>
                             </div>
                             <div class="card-body" id="chat-box" style="height: 400px; overflow-y: auto;">
                                 <?php

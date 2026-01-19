@@ -29,6 +29,8 @@ body {
   color: white;
   padding-top: 20px;
   transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar .logo img {
@@ -60,10 +62,15 @@ body {
 }
 
 .logout-btn {
-  position: absolute;
-  bottom: 20px;
-  width: 90%;
-  left: 5%;
+  position: relative;
+  bottom: auto;
+  width: 100%;
+  left: auto;
+  margin-top: auto;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 10px 15px;
+  text-align: center;
 }
 
 .content {
